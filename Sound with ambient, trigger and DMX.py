@@ -5,16 +5,18 @@
 # insert > deb http://apt.openlighting.org/debian squeeze main
 
 # sudo apt-get update
-# sudo apt-get install ola
-# sudo apt-get install ola-python ola-rdm-tests
+# sudo apt-get install ola ola-python ola-rdm-tests
 
 # Lamp: Cameo CLP64RGBA10BS
 # Mode: 3CH
 # DMX start ch: 1
 
-soundTrigger = "/home/pi/jail_cell_door.wav"
-soundAmbient = "/home/pi/rumble.wav"
-soundDebounce = 1 # Debounce set in seconds
+soundTrigger = "/home/pi/sound_trigger.wav"
+soundAmbient = "/home/pi/sound_ambient.wav"
+
+triggerDebounce = 30 # Debounce set in seconds
+
+lightFlash = 0.05 # Duration of the light flash
 
 import pygame
 import time, os
@@ -23,7 +25,7 @@ import os.path
 import thread
 
 os.system("amixer cset numid=3 1") # Set output to 3.5mm jack
-os.system("amixer set PCM -- 400") # Set alsa volume to 100%
+os.system("amixer set PCM -- 0") # Set alsa volume to 96%
 
 # Set up and initiate mixer
 pygame.mixer.pre_init(44100, -16, 2, 4096)
@@ -34,18 +36,18 @@ triggerChannel = pygame.mixer.find_channel()
 
 
 # Set up thread for sending data to OLA
-def lampBlink():
+def lampBlink(delay):
     os.system("ola_streaming_client -u 1 -d 255,255,255")
-    time.sleep(0.1)
+    time.sleep(delay)
     os.system("ola_streaming_client -u 1 -d 0,0,0")
 
 
 # Define function which will get triggered by the GPIO input
 def pirTriggered(channel):
-    global triggerChannel
+    global triggerChannel, lightFlash
     triggerChannel = pygame.mixer.find_channel()
     triggerChannel.play(triggerEffect)
-    thread.start_new_thread(lampBlink,()) # Start thread for blinking the lamp with DMX
+    thread.start_new_thread(lampBlink, (lightFlash,)) # Start thread for blinking the lamp with DMX
     print("Triggered")
 
 
@@ -68,7 +70,7 @@ if os.path.exists(soundTrigger):
     GPIO.setmode(GPIO.BOARD)
     GPIO.setup(23, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
     # Add event for detecting the signal from PIR
-    GPIO.add_event_detect(23, GPIO.RISING, callback=pirTriggered, bouncetime = (soundDebounce * 1000))
+    GPIO.add_event_detect(23, GPIO.RISING, callback=pirTriggered, bouncetime = (triggerDebounce * 1000))
 else:
     print("No trigger file found")
 
